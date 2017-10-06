@@ -1,0 +1,153 @@
+!	求流函数和速度势函数,采用求坐标系,使用网格点资料。
+	SUBROUTINE LHS(U,V,P,L,M,N,F0,DL,DM,FAI,KAP)
+	REAL(8),DIMENSION(L,M,N)::U,V,VOR,DIV,FAI,KAP !,U1,V1,U2,V2,U3,V3
+	REAL(8),DIMENSION(N)::EMS,P
+	REAL(8)::ZM1,ZM2,ZM3,ZM4,ZM5,ZM6,ZM7,ZM8
+	REAL(8)::F0,DL,DM,ALF
+	REAL(8),PARAMETER::AA=6.371E6;PI=3.1415926
+	ALF=1.8323
+	L1=L-1
+	M1=M-1
+	DO K=1,N
+		ZM1=-0.5*(U(1,1,K)+U(1,M,K))				 !西边界
+		ZM2=0.5*(ABS(U(1,1,K))+ABS(U(1,M,K)))
+		DO J=2,M1
+			ZM1=ZM1-U(1,J,K)
+			ZM2=ZM2+ABS(U(1,J,K))
+		END DO
+		ZM1=ZM1*DM
+		ZM2=ZM2*DM
+
+		ZM3=0.5*(V(1,M,K)+V(L,M,K))				 !北边界
+		ZM4=0.5*(ABS(V(1,M,K))+ABS(V(L,M,K)))
+		DO I=2,L1
+			ZM3=ZM3+V(I,M,K)
+			ZM4=ZM4+ABS(V(I,M,K))
+		END DO
+		ZM3=ZM3*COS(F0+(M-1)*DM)*DL
+		ZM4=ZM4*COS(F0+(M-1)*DM)*DL
+
+		ZM5=0.5*(U(L,1,K)+U(L,M,K))				 !东边界
+		ZM6=0.5*(ABS(U(L,1,K))+ABS(U(L,M,K)))
+		DO J=2,M1
+			ZM5=ZM5+U(L,J,K)
+			ZM6=ZM6+ABS(U(L,J,K))
+		END DO
+		ZM5=ZM5*(DM)
+		ZM6=ZM6*(DM)
+
+		ZM7=-0.5*(V(1,1,K)+V(L,1,K))				 !南边界
+		ZM8=0.5*(ABS(V(1,1,K))+ABS(V(L,1,K)))
+		DO I=2,L1
+			ZM7=ZM7-V(I,1,K)
+			ZM8=ZM8+ABS(V(I,1,K))
+		END DO
+		ZM7=ZM7*COS(F0)*(DL)
+		ZM8=ZM8*COS(F0)*(DL)
+
+		EMS(K)=-(ZM1+ZM3+ZM5+ZM7)/(ZM2+ZM4+ZM6+ZM8)	!订正系数
+		DO I=1,L			  			  !对边界上的U、V进行订正
+			V(I,1,K)=V(I,1,K)-EMS(K)*ABS(V(I,1,K))  !南边界
+			V(I,M,K)=V(I,M,K)+EMS(K)*ABS(V(I,M,K))  !北边界
+		END DO
+		DO J=1,M
+			U(1,J,K)=U(1,J,K)-EMS(K)*ABS(U(1,J,K))  !西边界
+			U(L,J,K)=U(L,J,K)+EMS(K)*ABS(U(L,J,K))  !东边界
+		END DO
+	END DO
+	DO K=1,N
+		FAI(1,1,K)=0
+		DO J=1,M1							   !西边界
+			FAI(1,J+1,K)=FAI(1,J,K)-(U(1,J+1,K)+U(1,J,K))/2*AA*DM
+		END DO
+		DO I=1,L1							   !北边界
+		FAI(I+1,M,K)=FAI(I,M,K)+(V(I+1,M,K)+V(I,M,K))/2*AA*DL*COS(F0+(M-1)*DM)
+		END DO
+		DO J=M,2,-1						   !东边界
+			FAI(L,J-1,K)=FAI(L,J,K)+(U(L,J-1,K)+U(L,J,K))/2*AA*(-DM)
+		END DO
+		DO I=L,2,-1						   !南边界
+			FAI(I-1,1,K)=FAI(I,1,K)-(V(I-1,1,K)+V(I,1,K))/2*AA*(-DL)*COS(F0)
+		END DO
+		FFF=FAI(1,1,K)/(2*(L+M-2))
+		DO J=2,M
+			FAI(1,J,K)=FAI(1,J,K)-FFF*(J-1)
+		END DO
+		DO I=2,L
+			FAI(I,M,K)=FAI(I,M,K)-FFF*(M-1+I-1)
+		END DO
+		DO J=M1,1,-1
+			FAI(L,J,K)=FAI(L,J,K)-FFF*(M-1+L-1+M-J)
+		END DO
+		DO I=L1,1,-1
+			FAI(I,1,K)=FAI(I,1,K)-FFF*(M-1+L-1+M-1+L-I)
+		END DO
+	END DO
+
+	CALL DIVER(U,V,P,DL,DM,F0,L,M,N,DIV)
+	CALL VORTICITY(U,V,DL,DM,F0,L,M,N,VOR)
+	VOR=-VOR
+	KAP=0
+	CALL ERROR(FAI,VOR,L,M,N,F0,DL,DM,ALF)
+	CALL ERROR(KAP,DIV,L,M,N,F0,DL,DM,ALF)
+	END
+
+	SUBROUTINE ERROR(A,Q,L,M,N,F0,DL,DM,ALF)
+	REAL(8),DIMENSION(L,M,N)::A,Q
+	REAL(8),DIMENSION(L,M)::A1,A2,R
+	REAL(8)::F0,DL,DM,AA,ALF,EPS
+	AA=6.371E6
+	EPS=1.E2
+	L1=L-1
+	M1=M-1
+	DO K=1,N
+		WRITE(*,'(" K=",I4)')K
+		N0=0
+		DO
+			A1(1:L,1:M)=A(1:L,1:M,K)
+			A2=A1
+			N0=N0+1
+			DO I=2,L1
+				DO J=2,M1
+					R(I,J)=((A1(I+1,J)+A1(I-1,J))/(DL*COS(F0+(J-1)*DM))**2+(A1(I,J+1)
+     &				+A1(I,J-1))/DM**2-TAN(F0+(J-1)*DM)*(A1(I,J+1)-A1(I,J-1))/
+     &				(2*DM)+AA*AA*Q(I,J,K))/(2/(DL*COS(F0+(J-1)*DM))**2+2/DM**2)
+					A1(I,J)=(1-ALF)*A1(I,J)+ALF*R(I,J)
+				END DO
+			END DO
+			IF(MAXVAL(ABS(A1-A2))<EPS)EXIT
+			A(1:L,1:M,K)=A1(1:L,1:M)
+		END DO
+	END DO
+	END
+	
+	PROGRAM MAIN
+	INTEGER,PARAMETER::L=57    !计算的东西方向的格点数
+	INTEGER,PARAMETER::M=29    !计算的南北方向的格点数
+	INTEGER,PARAMETER::N=7	   !垂直方向层数
+	REAL(8),DIMENSION(L,M,N)::U,V,KAP,FAI
+	REAL(8),DIMENSION(N)::P
+	REAL(8)::F0
+	REAL(8),PARAMETER::AA=6.371E6   !地球的半径
+	REAL(8),PARAMETER::PI=3.1415926
+	REAL(8),PARAMETER::DL=PI*2.5/180  !资料的网格距(由经纬度换为弧度单位)
+	REAL(8),PARAMETER::DM=PI*2.5/180  !资料的网格距(由经纬度换为弧度单位)
+	DATA P/1000,850,700,500,300,200,100/
+	F0=PI*0./180		  !南边界的纬度
+	L0=L
+	OPEN(12,FILE='..\PRO\U880501.DAT')
+	READ(12,'(<L0>F7.1)')(((U(I,J,K),I=1,L),J=1,M),K=1,N)
+	CLOSE(12)
+	OPEN(13,FILE='..\PRO\V880501.DAT')
+	READ(13,'(<L0>F7.1)')(((V(I,J,K),I=1,L),J=1,M),K=1,N)
+	CLOSE(13)
+	CALL LHS(U,V,P,L,M,N,F0,DL,DM,FAI,KAP)
+	OPEN(15,FILE='FAI.DAT')
+	WRITE(15,'(<L0>E11.4)')(((FAI(I,J,K),I=1,L),J=1,M),K=1,N)
+	CLOSE(15)
+	OPEN(16,FILE='KAP.DAT')
+	WRITE(16,'(<L0>E11.4)')(((KAP(I,J,K),I=1,L),J=1,M),K=1,N)
+	CLOSE(16)
+	END
+
+
