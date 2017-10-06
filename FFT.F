@@ -1,0 +1,95 @@
+	SUBROUTINE FFT(N,K,PR,PI,FR,FI,L,IL)
+	REAL*8,DIMENSION(N):: PR,PI,FR,FI
+	REAL*8:: P,Q,S,VR,VI,PODDR,PODDI
+	REAL*8,PARAMETER::PAI=3.1415926
+	DO IT=0,N-1
+		M=IT
+		IS=0
+		DO I=0,K-1
+			J=M/2
+			IS=2*IS+(M-2*J)
+			M=J
+		END DO
+		FR(IT+1)=PR(IS+1)
+		FI(IT+1)=PI(IS+1)
+	END DO
+	PR(1)=1.
+	PI(1)=0.
+	PR(2)=COS(2*PAI/N)
+	PI(2)=-SIN(2*PAI/N)
+	IF(L.NE.0)PI(2)=-PI(2)
+	DO I=3,N
+		P=PR(I-1)*PR(2)
+		Q=PI(I-1)*PI(2)
+		S=(PR(I-1)+PI(I-1))*(PR(2)+PI(2))
+		PR(I)=P-Q
+		PI(I)=S-P-Q
+	END DO
+	DO IT=0,N-2,2
+		VR=FR(IT+1)
+		VI=FI(IT+1)
+		FR(IT+1)=VR+FR(IT+2)
+		FI(IT+1)=VI+FI(IT+2)
+		FR(IT+2)=VR-FR(IT+2)
+		FI(IT+2)=VI-FI(IT+2)
+	END DO
+	M=N/2
+	NV=2
+	DO L0=K-2,0,-1
+		M=M/2
+		NV=2*NV
+		DO IT=0,(M-1)*NV,NV
+			DO J=0,(NV/2)-1
+				P=PR(M*J+1)*FR(IT+J+1+NV/2)
+				Q=PI(M*J+1)*FI(IT+J+1+NV/2)
+				S=PR(M*J+1)+PI(M*J+1)
+				S=S*(FR(IT+J+1+NV/2)+FI(IT+J+1+NV/2))
+				PODDR=P-Q
+				PODDI=S-P-Q
+				FR(IT+J+1+NV/2)=FR(IT+J+1)-PODDR
+				FI(IT+J+1+NV/2)=FI(IT+J+1)-PODDI
+				FR(IT+J+1)=FR(IT+J+1)+PODDR
+				FI(IT+J+1)=FI(IT+J+1)+PODDI
+			END DO
+		END DO
+	END DO
+	IF(L.NE.0)THEN
+		DO I=1,N
+			FR(I)=FR(I)/N
+			FI(I)=FI(I)/N
+		END DO
+	ENDIF
+	IF(IL.NE.0)THEN
+		DO I=1,N
+			PR(I)=SQRT(FR(I)*FR(I)+FI(I)*FI(I))
+			PI(I)=ATAN(FI(I)/FR(I))*180/PAI
+		END DO
+	END IF
+	END
+
+	PROGRAM MAIN
+	INTEGER,PARAMETER::K=6
+	INTEGER,PARAMETER::N=2**K
+	REAL*8,DIMENSION(N):: PR,PI,FR,FI
+	OPEN(10,FILE='AA2.DAT')
+	READ(10,'(F8.2)')PR
+	CLOSE(10)
+	PI=0.
+	OPEN(12,FILE='FFT.DAT')
+	WRITE(12,'(" 序列P(I)即原始资料")')
+	WRITE(12,20)(PR(I),I=1,N)
+	CALL FFT(N,K,PR,PI,FR,FI,0,1)
+	WRITE(12,'(" 序列P(I)FFT变换F(I)的实部")')
+	WRITE(12,20)(FR(I),I=1,N)
+	WRITE(12,'(" 序列P(I)FFT变换F(I)的虚部")')
+	WRITE(12,20)(FI(I),I=1,N)
+	WRITE(12,'(" 序列P(I)FFT变换F(I)的模")')
+	WRITE(12,20)(PR(I),I=1,N)
+	WRITE(12,'(" 序列P(I)FFT变换F(I)的幅角")')
+	WRITE(12,20)(PI(I),I=1,N)
+	CALL FFT(N,K,FR,FI,PR,PI,1,1)
+	WRITE(12,'(" F(I)的FFT逆变换的模")')
+	WRITE(12,20)(FR(I),I=1,N)
+ 20	FORMAT(1X,8F8.2)
+	CLOSE(12)
+	END
