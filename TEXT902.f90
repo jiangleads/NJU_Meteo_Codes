@@ -1,0 +1,115 @@
+	!THIS PROGRAM DRAWS CONTOUR USING GRID DATA
+	!BUILD AS QUICKWIN OR STANDARD GRAPHICS
+	!APPLICATION.
+	!THIS PROGRAM IS DESIGNED TO DRAW
+	!CONTOUR WITH THE GRID DATA
+	!
+	USE MSFLIB
+	REAL(8) STATUS
+	TYPE(WXYCOORD) XY
+	PARAMETER(JJ=24,II=40,XSC=15.0,YSC=15.5)
+	REAL(8) X(4),Y(4),F(4),T(II,JJ)
+	REAL(8) X2(II),Y2(II),F2(II)
+	LOGICAL L(4),L2(II),LL
+	!READ THE GRID DATA IN THIS PROGRAM
+	!WE CONSTRUCT A IDEAL TEMPERATURE DATA
+	TX=40.0
+	TN=40.0
+	DO 100 J=1,JJ
+		DO 100 I=1,II
+			T(I,J)=40.0-1.2*J+I+.06*(J-15)**2+.04*(I-20)**2
+			T(I,J)=T(I,J)+10*COS(.325*J)*SIN(.325*I)
+			IF (TX .LT. T(I,J)) THEN
+				TX=T(I,J)
+			ENDIF
+			IF(TN .GT. T(I,J)) THEN
+				TN=T(I,J)
+			ENDIF
+100	CONTINUE
+	!BEGIN THE CONTOUR
+	DO 200 TC=INT(TN+1)+.5,INT(TX)+.5,4
+		DO 300 J=0,JJ-1
+			DO 400 I=0,II-1
+				NK=0
+				IF(I.GT.0)THEN
+					L(4)=L2(I)
+				ENDIF
+				IF(L(4))THEN
+					NK=NK+1
+					X(4)=X2(I)
+					Y(4)=Y2(I)
+					F(4)=F2(I)
+				ENDIF
+				TA=T(I,J+1)
+				TB=T(I+1,J+1)
+				L10=(TC.GE.TA).AND.(TC.LT.TB)
+				L20=(TC.LT.TA).AND.(TC.GE.TB)
+				LL=L10.OR.L20
+				IF(LL) THEN
+					FF=(TC-TA)/(TB-TA)
+				ENDIF
+				L(2)=LL
+				IF(L(2)) THEN
+					NK=NK+1
+					F(2)=FF
+					X(2)=(I+FF)*XSC
+					Y(2)=(J+FF)*YSC
+				ENDIF
+				L2(I)=L(2)
+				IF(L(2)) THEN
+					X2(I)=X(2)
+					Y2(I)=Y(2)
+					F2(I)=F(2)
+				ENDIF
+				IF(J.GT.0) THEN
+					L(1)=L(3)
+					IF(L(1))THEN
+						NK=NK+1
+						X(1)=X(3)
+						Y(1)=Y(3)
+						F(1)=F(3)
+					ENDIF
+					IF((NK.EQ.1).OR.(NK.EQ.3).OR.(I.EQ.0))THEN
+						TA=T(I+1,J)
+						TB=T(I+1,J+1)
+						L10=(TC.GE.TA).AND.(TC.LT.TB)
+						L20=(TC.LT.TA).AND.(TC.GE.TB)
+						LL=L10.OR.L20
+						IF(LL) THEN
+							FF=(TC-TA)/(TB-TA)
+						ENDIF
+						L(3)=LL
+						IF(L(3)) THEN
+							NK=NK+1
+							F(3)=FF
+							X(3)=(I+1)*XSC
+							Y(3)=(J+FF)*YSC
+						ENDIF
+					ELSE
+						L(3)=0
+					ENDIF
+				ENDIF
+				IF((J.GT.0).AND.(I.GT.0).AND.(NK.GT.0)) THEN
+					IF(NK.EQ.2) THEN
+						DO M1=1,3
+							IF(L(M1)) THEN
+								DO M2=M1+1,4
+									IF(L(M2)) THEN
+										CALL MOVETO_W(X(M1),479-Y(M1),XY)
+										STATUS=LINETO_W(X(M2),479-Y(M2))
+									ENDIF
+								ENDDO
+							ENDIF
+						ENDDO
+					ELSE
+						CALL MOVETO_W(X(1),479-Y(1),XY)
+						STATUS=LINETO_W(X(2),479-Y(2))
+						CALL MOVETO_W(X(3),479-Y(3),XY)
+						STATUS=LINETO_W(X(4),479-Y(4))
+					ENDIF
+				ENDIF
+400			CONTINUE
+300		CONTINUE
+200	CONTINUE
+	END
+
