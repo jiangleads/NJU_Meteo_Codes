@@ -1,0 +1,79 @@
+	SUBROUTINE MAQ(X,N,Q,EPS)
+	INTEGER::TAO,Q	              !TAO:落后时间;Q:滑动平均的阶数
+	REAL(8),DIMENSION(N)::X
+	REAL(8),DIMENSION(Q)::THITA  !滑动系数
+	REAL(8),DIMENSION(Q)::THIT   !迭代中用的滑动系数,中间变量
+	REAL(8),DIMENSION(Q)::R	  !相关系数
+	REAL(8),DIMENSION(Q)::S		  !S协方差
+	REAL(8)::S2,A1	  	          !S2:方差, A1:中间变量
+	REAL(8)::S2A                  !S2A:序列a(t)的方差
+	REAL(8)::EPS,EP1,EP2          !EPS:迭代的精度
+	S=0
+	DO TAO=1,Q
+		DO I=1,N-TAO
+			S(TAO)=S(TAO)+X(I)*X(I+TAO)
+		END DO
+		S(TAO)=S(TAO)/(N-TAO)
+	END DO
+	S2=0
+	DO I=1,N
+		S2=S2+X(I)*X(I)
+	END DO
+	S2=S2/N
+	DO TAO=1,Q
+		R(TAO)=0
+		DO I=1,N-TAO
+			R(TAO)=R(TAO)+X(I)*X(I+TAO)
+		END DO
+		R(TAO)=R(TAO)/S2/(N-TAO)
+	END DO
+	THIT=0
+	S2B=S2
+	NN=0
+	DO
+		NN=NN+1
+		A1=1
+		DO I=1,Q
+			A1=A1+THIT(I)*THIT(I)
+		END DO
+		S2A=S2/A1
+		THITA=-R*S2/S2A
+		DO K=1,Q-1
+			DO I=1,Q-K
+				THITA(K)=THITA(K)+THIT(I)*THIT(K+I)
+			END DO
+		END DO
+		EP1=ABS(S2A-S2B)
+		EP2=MAXVAL(ABS(THIT-THITA))
+		IF(EP1<EPS.AND.EP2<EPS)EXIT
+		THIT=THITA
+		S2B=S2A
+		PRINT*,'NN=',NN
+	END DO
+	OPEN(12,FILE='MAQ.DAT')
+	WRITE(12,*)
+	WRITE(12,'("S2=",D12.5)')S2
+	WRITE(12,'("R=",<Q>D12.5)')R
+	WRITE(12,'("S2A=",E12.5)')S2A
+	WRITE(12,'("THITA=",<Q>D12.5)')THITA
+	CLOSE(12)
+	END
+! 6.3.6例
+! 计算北京1951年——1980年1月的平均气温2阶、3阶滑动平均模型的系数(同时也算出了12月、2月的结果)
+	PROGRAM MAIN
+	INTEGER,PARAMETER::N=30
+	INTEGER,PARAMETER::Q=2
+	REAL(8),DIMENSION(N)::X
+	REAL(8),PARAMETER::EPS=1.0E-5
+	REAL(8)::XV     !X的平均值
+	OPEN(10,FILE='BEIJING.DAT')
+	READ(10,*)X
+	CLOSE(10)
+	XV=0
+	DO I=1,N
+		XV=XV+X(I)
+	END DO
+	XV=XV/N
+	X=X-XV
+	CALL MAQ(X,N,Q,EPS)
+	END
